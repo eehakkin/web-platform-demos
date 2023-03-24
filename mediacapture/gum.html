@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta charset="UTF-8" />
+		<title>gUM</title>
+		<script type="text/javascript">/*<![CDATA[>*/
+'use strict';
+function appliedConstraint(track, name, value, error) {
+	const id = `${track.kind}-${track.id}-${name}`;
+	const input = document.getElementById(id);
+	const settings = track.getSettings();
+	console.log(track, name, value, settings[name], error);
+	if (input) {
+		if (settings[name] === false || settings[name] === true)
+			input.checked = settings[name];  // input[type="checkbox"]
+		else {
+			input.value = settings[name];  // input[type="text"]
+			const input2 = document.getElementById(`${id}-range`);
+			if (input2)
+				input2.value = settings[name];  // input[type="range"]
+		}
+	}
+	else {
+		const input2 = document.getElementById(`${id}-${settings[name]}`);
+		if (input2)
+			input2.checked = true;  // input[type="radio"]
+	}
+}
+function applyConstraint(event, input) {
+	input ||= event.target;
+	const label = input.parentNode;
+	const td = label.parentNode;
+	const tr = td.parentNode;
+	const tbody = tr.parentNode;
+	const table = tbody.parentNode;
+	const track = table.track;
+	const name =
+		(input.name || input.id)
+		.replace(/-(range)$/, '')
+		.replace(/^.+-/, '');
+	let value = input.value;
+	if (input.type == 'checkbox')
+		value = input.checked;
+	else if (input.type == 'range' || (input.type == 'text' && typeof track.getSettings()[name] == 'number'))
+		value = +value;
+	const constraints = {
+		[name]:		{exact: value},
+		advanced:	[{[name]: value}]
+	};
+	console.log(constraints);
+	track
+	.applyConstraints(constraints)
+	.then(() => appliedConstraint(track, name, value))
+	.catch(error => appliedConstraint(track, name, value, error));
+}
+function copyValue(event) {
+	document.getElementById(this.id.replace(/-[^-]+$/, '')).value = this.value;
+}
+function createElement(tagName, attributes, properties, contents, parent) {
+	const element = document.createElement(tagName);
+	for (const [name, value] of Object.entries(attributes || {})) {
+		if (name == 'on' || name == 'once') {
+			for (const [type, listener] of Object.entries(value))
+				element.addEventListener(type, listener, {once: name == 'once'});
+		}
+		else if (value === true)
+			element.setAttribute(name, name);
+		else if (value !== undefined && value !== false)
+			element.setAttribute(name, value);
+	}
+	for (const [name, value] of Object.entries(properties || {})) {
+		if (value !== undefined)
+			element[name] = value;
+	}
+	for (let content of contents || []) {
+		if (!(content instanceof Element))
+			content = document.createTextNode(content);
+		element.appendChild(content);
+	}
+	if (parent)
+		parent.appendChild(element);
+	return element;
+}
+function getUserMedia(event, button) {
+	button ||= event.target;
+	const td = button.parentNode;
+	const tr = td.parentNode;
+	const tbody = tr.parentNode;
+	const table = tbody.parentNode;
+	for (const button of document.querySelectorAll('table[class] button.stop'))
+		button.click();
+	const constraints = {
+		audio: {},
+		video: {}
+	};
+	for (const input of table.querySelectorAll('input, select')) {
+		if (input.disabled)
+			continue;
+		const parts = input.id.match(/^([^-]+)(?:-([^-]+))?(?:-(.*))?$/);
+		if (!parts)
+			continue;
+		const kind = parts[1];
+		const name = parts[2];
+		if (!name) {
+			if (!input.checked)
+				constraints[kind] = false;
+			continue;
+		}
+		if (constraints[kind] === false)
+			continue;
+		switch (input.type) {
+		case 'checkbox':
+			constraints[kind][name] = input.checked;
+			break;
+		case 'radio':
+			if (input.checked && input.value)
+				constraints[kind][name] = input.value;
+			break;
+		case 'number':
+		case 'range':
+			if (input.value)
+				constraints[kind][name] = +input.value;
+			break;
+		case 'select-one':
+		case 'text':
+			if (name === 'aspectRatio') {
+				const parts2 = input.value.match(/^(\d+):(\d+)$/);
+				if (parts2)
+					constraints[kind][name] = +parts2[1] / +parts2[2];
+			}
+			else if (input.value)
+				constraints[kind][name] = input.value;
+			break;
+		default:
+			console.log(input);
+		}
+	}
+	console.log(constraints);
+	navigator.mediaDevices
+	.getUserMedia(constraints)
+	.then(mediaSource => {
+		const [video] = document.getElementsByTagName('video');
+		video.addEventListener('loadedmetadata', event => video.play());
+		video.srcObject = mediaSource;
+		setTimeout(function () {
+			for (const audioTrack of mediaSource.getAudioTracks())
+				processTrack(audioTrack);
+			for (const videoTrack of mediaSource.getVideoTracks())
+				processTrack(videoTrack);
+		}, 1000);
+		requestRepeatingVideoFrameCallback(
+			video,
+			(now, metadata) => console.log(now, metadata),
+			10000
+			);
+		updateDeviceLists();
+	})
+	.catch(error => alert(error));
+}
+function processTrack(track) {
+	const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+	const settings = track.getSettings ? track.getSettings() : {};
+	console.log(track);
+	console.log(capabilities);
+	console.log(settings);
+	const getUserMediaTable = document.getElementById('getUserMedia-table');
+	const table = createElement('table', {'class': track.kind}, {track}, [
+		createElement('caption', {}, {}, [track.label]),
+		createElement('tbody')
+	]);
+	getUserMediaTable.parentNode.insertBefore(table, getUserMediaTable);
+	for (const [name, value] of Object.entries(settings)) {
+		const capability = capabilities[name] || {};
+		const id = `${track.kind}-${track.id}-${name}`;
+		const tr = createElement('tr', {}, {}, [
+			createElement('th', {}, {}, [
+				createElement('label', {'for': id}, {}, [name, ':'])
+			]),
+			createElement('td')
+		]);
+		const td = tr.lastChild;
+		let readonly = false;
+		switch (typeof value) {
+		case 'boolean':
+			readonly = Array.isArray(capability) && !(capability.includes(false) && capability.includes(true));
+			td.appendChild(createElement('label', {'class': 'checkbox', 'for': id}, {}, [
+				createElement('input', {
+					checked:	value,
+					id:		id,
+					on:		readonly ? {} : {change: applyConstraint},
+					readonly:	readonly,
+					type:		'checkbox'
+				})
+			]));
+			break;
+		case 'number':
+			readonly = capability.min >= capability.max;
+			td.appendChild(createElement('label', {'class': 'text', 'for': id}, {}, [
+				createElement('input', {
+					id:		id,
+					on:		readonly ? {} : {change: applyConstraint},
+					readonly:	readonly,
+					type:		'text',
+					value:		value
+				})
+			]));
+			if (capability.min < capability.max)
+				td.lastChild.appendChild(createElement('input', {
+					id:	`${id}-range`,
+					max:	capability.max,
+					min:	capability.min,
+					on:	{
+						change:	applyConstraint,
+						input:	copyValue
+					},
+					step:	capability.step,
+					type:	'range',
+					value:	value
+				}));
+			break;
+		case 'string':
+			if (Array.isArray(capability)) {
+				for (const i of capability) {
+					const id2 = `${id}-${i}`;
+					td.appendChild(createElement('label', {'class': 'radio', 'for': id2}, {}, [
+						createElement('input', {
+							checked:	value == i,
+							id:		id2,
+							name:		id,
+							on:		{change: applyConstraint},
+							type:		'radio',
+							value:		i
+						}),
+						i
+					]));
+				}
+			}
+			else
+				td.appendChild(createElement('label', {'class': 'text', 'for': id}, {}, [
+					createElement('input', {
+						id:	id,
+						on:	{change: applyConstraint},
+						type:	'text',
+						value:	value
+					})
+				]));
+			break;
+		default:
+			td.appendChild(document.createTextNode(typeof value));
+		}
+		table.lastChild.appendChild(tr);
+	}
+	table.lastChild.appendChild(createElement('tr', {}, {}, [
+		createElement('th'),
+		createElement('td', {}, {}, [
+			createElement('button', {
+				'class':	'stop',
+				'on':		{click: stopTrack},
+				'type':		'button'
+			}, {}, ['Stop track'])
+		])
+	]));
+	if (track.stats) {
+		table.appendChild(createElement('tbody'));
+		if (track.kind == 'audio') {
+			const outputs = {
+				averageLatency:		createElement('output', {}, {}, ['N/A']),
+				latency:		createElement('output', {}, {}, ['N/A']),
+				maximumLatency:		createElement('output', {}, {}, ['N/A']),
+				minimumLatency:		createElement('output', {}, {}, ['N/A']),
+			};
+			table.lastChild.appendChild(createElement('tr', {}, {}, [
+				createElement('th', {}, {}, [
+					createElement('label', {}, {}, ['Latency:'])
+					]),
+				createElement('td', {}, {}, [outputs.latency, '\u00A0ms'])
+				]));
+			table.lastChild.appendChild(createElement('tr', {}, {}, [
+				createElement('th', {}, {}, [
+					createElement('label', {}, {}, ['Average latency:'])
+					]),
+				createElement('td', {}, {}, [outputs.averageLatency, '\u00A0ms'])
+				]));
+			table.lastChild.appendChild(createElement('tr', {}, {}, [
+				createElement('th', {}, {}, [
+					createElement('label', {}, {}, ['Minimum latency:'])
+					]),
+				createElement('td', {}, {}, [outputs.minimumLatency, '\u00A0ms'])
+				]));
+			table.lastChild.appendChild(createElement('tr', {}, {}, [
+				createElement('th', {}, {}, [
+					createElement('label', {}, {}, ['Maximum latency:'])
+					]),
+				createElement('td', {}, {}, [outputs.maximumLatency, '\u00A0ms'])
+				]));
+			const statsIntervalId = setInterval(function () {
+				if (track.readyState != 'live') {
+					clearInterval(statsIntervalId);
+					return;
+				}
+				const stats = track.stats;
+				for (const [name, output] of Object.entries(outputs))
+					output.value = stats[name];
+			}, 1000);
+		}
+		else if (track.kind == 'video') {
+			const outputs = {
+				deliveredFrameCountDelta:	createElement('output', {}, {}, ['N/A']),
+				discardedFrameCount:		createElement('output', {}, {}, ['N/A']),
+				discardedFrameRate:		createElement('output', {}, {}, ['N/A']),
+			};
+			table.lastChild.appendChild(createElement('tr', {}, {}, [
+				createElement('th', {}, {}, [
+					createElement('label', {}, {}, ['Delivered frames:'])
+					]),
+				createElement('td', {}, {}, [
+					outputs.deliveredFrameCountDelta,
+					'\u00A0/\u00A0s'
+					])
+				]));
+			table.lastChild.appendChild(createElement('tr', {}, {}, [
+				createElement('th', {}, {}, [
+					createElement('label', {}, {}, ['Discarded frames:'])
+					]),
+				createElement('td', {}, {}, [
+					outputs.discardedFrameCount,
+					' (',
+					outputs.discardedFrameRate,
+					'\u00A0%',
+					')'
+					])
+				]));
+			let lastDeliveredFrames = 0;
+			const statsIntervalId = setInterval(function () {
+				if (track.readyState != 'live') {
+					clearInterval(statsIntervalId);
+					return;
+				}
+				const stats = track.stats;
+				outputs.deliveredFrameCountDelta.value =
+					stats.deliveredFrames - lastDeliveredFrames;
+				outputs.discardedFrameCount.value =
+					stats.discardedFrames;
+				outputs.discardedFrameRate.value =
+					100.0 * stats.discardedFrames / (stats.totalFrames || 1);
+				lastDeliveredFrames = stats.deliveredFrames;
+			}, 1000);
+		}
+	}
+	track.addEventListener('configurationchange', event => console.log(event));
+}
+function requestRepeatingVideoFrameCallback(video, callback, delay) {
+	if (!video.requestVideoFrameCallback) {
+		console.log(video, "does not support requestVideoFrameCallback");
+		return;
+	}
+	video.requestVideoFrameCallback(function helper(now, metadata) {
+		console.log("calling video frame request callback");
+		callback(now, metadata);
+		setTimeout(function () {
+			if (video.ended)
+				console.log("video ended");
+			else
+				video.requestVideoFrameCallback(helper);
+		}, delay);
+	});
+}
+function onDeviceId(event) {
+	switch (event.target.type) {
+	case 'radio':
+		if (event.type == 'input')
+			return;
+		const label = event.target.parentNode;
+		const dl = label.parentNode.parentNode;
+		const textInput = dl.querySelector(`input[name="${event.target.name}"][type="text"]`);
+		if (!event.target.value) {
+			textInput.focus();
+			textInput.select();
+		}
+		else
+			textInput.value = event.target.value;
+		break;
+	case 'text':
+		event.target.previousElementSibling.checked = true;
+		break;
+	}
+}
+function stopTrack(event, button) {
+	button ||= event.target;
+	const td = button.parentNode;
+	const tr = td.parentNode;
+	const tbody = tr.parentNode;
+	const table = tbody.parentNode;
+	const track = table.track;
+	track.stop();
+	table.parentNode.removeChild(table);
+}
+function updateConstraints() {
+	const supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
+	console.log(supportedConstraints);
+	for (const input of document.querySelectorAll('input, select')) {
+		const parts = input.id.match(/^([^-]+)(?:-([^-]+))?(?:-(.*))?$/);
+		if (!parts)
+			continue;
+		const kind = parts[1];
+		const name = parts[2];
+		const value = parts[3];
+		if (!name) {
+			const parts2 = location.search.match(`(?:^[?]|[&])${kind}=([^&]*)`);
+			if (parts2 && (parts2[1] === 'false' || parts2[1] === 'true'))
+				input.checked = parts2[1] !== 'false'
+			continue;
+		}
+		if (!supportedConstraints[name]) {
+			input.disabled = true;
+			continue;
+		}
+		const parts2 = location.search.match(`(?:^[?]|[&])(?:${kind}[.])?${name}=([^&]*)`);
+		if (parts2) {
+			switch (input.type) {
+			case 'checkbox':
+				if (parts2[1] === 'false' || parts2[1] === 'true')
+					input.checked = parts2[1] !== 'false';
+				break;
+			case 'radio':
+				if (parts2[1] === value)
+					input.checked = true;
+				break;
+			default:
+				input.value = parts2[1];
+			}
+		}
+	}
+}
+function updateDeviceLists() {
+	navigator.mediaDevices
+	.enumerateDevices()
+	.then(devices => {
+		const groupLabels = {};
+		for (const device of devices) {
+			if (!groupLabels[device.groupId])
+				groupLabels[device.groupId] = [];
+			groupLabels[device.groupId].push(device.label || device.deviceId);
+		}
+		for (const device of devices) {
+			const parts = device.kind.match(/^([^-]+)input$/);
+			if (!device.deviceId || !parts)
+				continue;
+			const kind = parts[1];
+			const label = device.label || device.deviceId;
+			const dl = document.getElementById(`${kind}-deviceId`);
+			const groupInputName = `${kind}-groupId`;
+			const groupInputId = `${groupInputName}-${device.groupId}`;
+			const groupInput =
+				document.getElementById(groupInputId) ||
+				createElement('dt', {}, {}, [
+					createElement('label', {'for': groupInputId, title: device.groupId}, {}, [
+						createElement('input', {
+							id:	groupInputId,
+							name:	groupInputName,
+							type:	'radio',
+							value:	device.groupId
+						}),
+						createElement('span', {}, {}, ['N/A'])
+					])
+				], dl).firstChild.firstChild;
+			groupInput.parentNode.lastChild.firstChild.nodeValue =
+				groupLabels[device.groupId].join(' /\n') || device.groupId;
+			const deviceInputName = `${kind}-deviceId`;
+			const deviceInputGroupId = `${deviceInputName}-${device.groupId}`;
+			const deviceInputId = `${deviceInputName}-${device.deviceId}`;
+			const deviceDd =
+				document.getElementById(deviceInputGroupId) ||
+				createElement('dd', {id: deviceInputGroupId}, {}, [], dl);
+			const deviceInput =
+				document.getElementById(deviceInputId) ||
+				createElement('label', {'for': deviceInputId, title: device.deviceId}, {}, [
+					createElement('input', {
+						id:	deviceInputId,
+						name:	deviceInputName,
+						type:	'radio',
+						value:	device.deviceId
+					}),
+					createElement('span', {}, {}, [device.deviceId])
+				], deviceDd).firstChild;
+			if (device.label)
+				deviceInput.parentNode.lastChild.firstChild.nodeValue = device.label;
+		}
+	})
+	.catch(error => alert(error));
+}
+document.addEventListener('DOMContentLoaded', event => {
+	updateConstraints();
+	updateDeviceLists();
+	for (const dl of [
+		document.getElementById('audio-deviceId'),
+		document.getElementById('video-deviceId')
+		]) {
+		dl.addEventListener('change', onDeviceId);
+		dl.addEventListener('click', onDeviceId);
+		dl.addEventListener('input', onDeviceId);
+	}
+}, {once: true});
+		/*<!]]>*/</script>
+		<style type="text/css">/*<![CDATA[>*/
+p.video,
+table.audio,
+table.video,
+table#getUserMedia-table {
+	border:		#ddd solid 1px;
+	border-radius:	1ex;
+	display:	block;
+	float:		left;
+	margin:		0 1em 1em 0;
+	padding:	1em;
+}
+table.audio,
+table.video,
+table#getUserMedia-table {
+	overflow:	auto;
+	resize:		vertical;
+}
+table#getUserMedia-table {
+	clear:		both;
+}
+table caption {
+	font-weight:	bold;
+}
+table tr td dl {
+	margin:		0;
+}
+table tr th {
+	font-weight:	normal;
+	text-align:	left;
+	vertical-align:	top;
+}
+label {
+	display:	block;
+	min-height:	1em;
+}
+label.radio {
+	display:	inline;
+}
+label > span {
+	display:	inline-block;
+	vertical-align:	top;
+	white-space:	pre-line;
+}
+		/*<!]]>*/</style>
+	</head>
+	<body>
+		<p class="video"><video></video></p>
+		<table id="getUserMedia-table">
+			<tbody class="audio">
+				<tr>
+					<th colspan="2"><label for="audio">audio:</label></th>
+					<td><label for="audio">
+						<input checked="checked" id="audio" type="checkbox" />
+					</label></td>
+				</tr>
+				<tr>
+					<th rowspan="8">&nbsp;</th>
+					<th><label for="audio-sampleRate">sampleRate:</label></th>
+					<td><label for="audio-sampleRate">
+						<input id="audio-sampleRate" list="audio-sampleRate-datalist" min="1" type="number" />
+						<datalist id="audio-sampleRate-datalist">
+							<option value="16000">16000 Hz</option>
+							<option value="44100">44100 Hz</option>
+							<option value="48000">48000 Hz</option>
+						</datalist>
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="audio-sampleSize">sampleSize:</label></th>
+					<td><label for="audio-sampleSize">
+						<input id="audio-sampleSize" min="1" type="number" />
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="audio-echoCancellation">echoCancellation:</label></th>
+					<td><label for="audio-echoCancellation">
+						<input checked="checked" id="audio-echoCancellation" type="checkbox" />
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="audio-autoGainControl">autoGainControl:</label></th>
+					<td><label for="audio-autoGainControl">
+						<input checked="checked" id="audio-autoGainControl" type="checkbox" />
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="audio-noiseSuppression">noiseSuppression:</label></th>
+					<td><label for="audio-noiseSuppression">
+						<input checked="checked" id="audio-noiseSuppression" type="checkbox" />
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="audio-latency">latency:</label></th>
+					<td><label for="audio-latency">
+						<input id="audio-latency" min="0.0" step="any" type="number" />
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="audio-channelCount">channelCount</label></th>
+					<td><label for="audio-channelCount">
+						<input id="audio-channelCount" max="2" min="1" step="1" type="range" value="1" />
+					</label></td>
+				</tr>
+				<tr>
+					<th><label>groupId / deviceId:</label></th>
+					<td><dl id="audio-deviceId">
+						<dt><label for="audio-groupId-">
+							<input checked="checked" id="audio-groupId-" name="audio-groupId" type="radio" value="" />
+							<input id="audio-groupId-text" name="audio-groupId" placeholder="groupId" size="44" type="text" />
+						</label></dt>
+						<dd id="audio-deviceId-"><label for="audio-deviceId--">
+							<input checked="checked" id="audio-deviceId--" name="audio-deviceId" type="radio" value="" />
+							<input id="audio-deviceId--text" name="audio-deviceId" placeholder="deviceId" size="44" type="text" />
+						</label></dt>
+					</dl></td>
+				</tr>
+			</tbody>
+			<tbody class="video">
+				<tr>
+					<th colspan="2"><label for="video">video:</label></th>
+					<td><label for="video">
+						<input checked="checked" id="video" type="checkbox" />
+					</label></td>
+				</tr>
+				<tr>
+					<th rowspan="10">&nbsp;</th>
+					<th><label for="video-width">width:</label></th>
+					<td><label for="video-width">
+						<input id="video-width" list="video-width-datalist" max="7680" min="1" type="number" />
+						<datalist id="video-width-datalist">
+							<option value="320">320 (QVGA)</option>
+							<option value="640">640 (VGA)</option>
+							<option value="854">854 (WVGA)</option>
+							<option value="1280">1280 (HD)</option>
+							<option value="1920">1920 (Full HD)</option>
+							<option value="2560">2560 (WQHD)</option>
+							<option value="3840">3840 (UHD-1)</option>
+							<option value="5120">5120 (5K)</option>
+							<option value="7680">3840 (UHD-2)</option>
+						</datalist>
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="video-height">height:</label></th>
+					<td><label for="video-height">
+						<input id="video-height" list="video-height-datalist" max="4320" min="1" type="number" />
+						<datalist id="video-height-datalist">
+							<option value="240">240 (QVGA)</option>
+							<option value="480">480 (VGA / WVGA)</option>
+							<option value="720">720 (HD)</option>
+							<option value="1080">1080 (Full HD)</option>
+							<option value="1440">1440 (WQHD)</option>
+							<option value="2160">2160 (UHD-1)</option>
+							<option value="2280">2280 (5K)</option>
+							<option value="4320">4230 (UHD-2)</option>
+						</datalist>
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="video-aspectRatio">aspectRatio:</label></th>
+					<td><label for="video-aspectRatio">
+						<select id="video-aspectRatio">
+							<option label="" value=""></option>
+							<option value="1:1">1:1</option>
+							<option value="5:4">5:4</option>
+							<option value="4:3">4:3</option>
+							<option value="3:2">3:2</option>
+							<option value="8:5">8:5</option>
+							<option value="5:3">5:3</option>
+							<option value="16:9">16:9</option>
+							<option value="17:9">17:9</option>
+							<option value="21:9">21:9</option>
+						</select>
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="video-frameRate">frameRate:</label></th>
+					<td><label for="video-frameRate">
+						<input id="video-frameRate" min="1.0" step="any" type="number" />
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="video-facingMode">facingMode:</label></th>
+					<td><label for="video-facingMode">
+						<select id="video-facingMode">
+							<option value=""></option>
+							<option value="user">user</option>
+							<option value="environment">environment</option>
+							<option value="left">left</option>
+							<option value="right">right</option>
+						</select>
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="video-resizeMode">resizeMode:</label></th>
+					<td><label for="video-resizeMode">
+						<select id="video-resizeMode">
+							<option value=""></option>
+							<option value="none">none</option>
+							<option value="crop-and-scale">crop-and-scale</option>
+						</select>
+					</label></td>
+				</tr>
+				<tr>
+					<th><label>groupId / deviceId:</label></th>
+					<td><dl id="video-deviceId">
+						<dt><label for="video-groupId-">
+							<input checked="checked" id="video-groupId-" name="video-groupId" type="radio" value="" />
+							<input id="video-groupId-text" name="video-groupId" placeholder="groupId" size="44" type="text" />
+						</label></dt>
+						<dd id="video-deviceId-"><label for="video-deviceId--">
+							<input checked="checked" id="video-deviceId--" name="video-deviceId" type="radio" value="" />
+							<input id="video-deviceId--text" name="video-deviceId" placeholder="deviceId" size="44" type="text" />
+						</label></dt>
+					</dl></td>
+				</tr>
+				<tr>
+					<th><label for="video-pan">pan:</label></th>
+					<td><label for="video-pan">
+						<input id="video-pan-support" type="checkbox" />
+						<input id="video-pan" max="648000.0" min="-648000.0" step="any" type="number" />
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="video-tilt">tilt:</label></th>
+					<td><label for="video-tilt">
+						<input id="video-tilt-support" type="checkbox" />
+						<input id="video-tilt" max="648000.0" min="-648000.0" step="any" type="number" />
+					</label></td>
+				</tr>
+				<tr>
+					<th><label for="video-zoom">zoom:</label></th>
+					<td><label for="video-zoom">
+						<input id="video-zoom-support" type="checkbox" />
+						<input id="video-zoom" min="0.0" step="any" type="number" />
+					</label></td>
+				</tr>
+			</tbody>
+			<tbody>
+				<tr>
+					<th colspan="2"></th>
+					<td><button id="getUserMedia" onclick="return getUserMedia(event, this);">getUserMedia</button></td>
+				</tr>
+			</tbody>
+		</table>
+	</body>
+</html>
