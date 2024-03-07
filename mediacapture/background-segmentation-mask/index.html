@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+	<head>
+		<meta charset="UTF-8" />
+		<style type="text/css">/*<[CDATA[>*/
+table.support {
+	border-collapse:collapse;
+	border-spacing:	0;
+}
+table.support,
+table.support > colgroup,
+table.support > thread,
+table.support > tbody {
+	border:		1px solid #aaa;
+}
+table.support > thead > tr > *,
+table.support > tbody > tr > * {
+	padding:	0 0.25em;
+}
+table.support > thead > tr > th,
+table.support > tbody > tr > td {
+	text-align:	center;
+}
+table.support > tbody > tr > th {
+	text-align:	right;
+}
+table.support > tbody > tr > td.support.no {
+	background:	#faa;
+}
+table.support > tbody > tr > td.support.no::after {
+	content:	"No";
+}
+table.support > tbody > tr > td.support.yes {
+	background:	#afa;
+}
+table.support > tbody > tr td.support.yes::after {
+	content:	"Yes";
+}
+table.form tbody tr * {
+	vertical-align:	top;
+}
+table.form tbody tr th {
+	text-align:	right;
+}
+video {
+	border:		1px solid #aaa;
+}
+		/*<!]]>*/</style>
+		<title></title>
+	</head>
+	<body>
+		<h1>Background Segmentation Mask Demo</h1>
+		<table class="support">
+			<colgroup><col></col></colgroup>
+			<colgroup><col></col><col></col></colgroup>
+			<thead>
+				<tr>
+					<th></th>
+					<th>Browser support</th>
+					<th>Camera support</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<th>MediaStreamTrackGenerator interface</th>
+					<td class="browser support for-interface-MediaStreamTrackGenerator"></td>
+				</tr>
+				<tr>
+					<th>MediaStreamTrackProcessor interface</th>
+					<td class="browser support for-interface-MediaStreamTrackProcessor"></td>
+				</tr>
+				<tr>
+					<th>MediaStreamTrackVideoStats interface</th>
+					<td class="browser support for-interface-MediaStreamTrackVideoStats"></td>
+				</tr>
+				<tr>
+					<th>OffscreenCanvas interface</th>
+					<td class="browser support for-interface-OffscreenCanvas"></td>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<th>backgroundMask constraint</th>
+					<td class="browser support for-constraint-backgroundMask"><span></span></td>
+					<td class="video-track support for-constraint-backgroundMask"><span></span></td>
+				</tr>
+				<tr>
+					<th>frameRate constraint</th>
+					<td class="browser support for-constraint-frameRate"><span></span></td>
+					<td class="video-track support for-constraint-frameRate"><span></span></td>
+				</tr>
+				<tr>
+					<th>height constraint</th>
+					<td class="browser support for-constraint-height"><span></span></td>
+					<td class="video-track support for-constraint-height"><span></span></td>
+				</tr>
+				<tr>
+					<th>width constraint</th>
+					<td class="browser support for-constraint-width"><span></span></td>
+					<td class="video-track support for-constraint-width"><span></span></td>
+				</tr>
+			</tbody>
+		</table>
+		<table class="form">
+			<tbody>
+				<tr>
+					<th><label for="videoDeviceIdSelect">Video device:</label></th>
+					<td><select id="videoDeviceIdSelect">
+						<option></option>
+					</select></td>
+				</tr>
+				<tr>
+					<th><label for="videoWidthInput">Video width:</label></th>
+					<td><input id="videoWidthInput" min="0" type="number" /></td>
+				</tr>
+				<tr>
+					<th><label for="videoHeightInput">Video height:</label></th>
+					<td><input id="videoHeightInput" min="0" type="number" /></td>
+				</tr>
+				<tr>
+					<th><label for="videoFrameRateInput">Video frame rate:</label></th>
+					<td><input id="videoFrameRateInput" max="60" min="0" type="number" /></td>
+				</tr>
+				<tr>
+					<th><label for="foregroundOverlayColorInput">Foreground overlay color:</label></th>
+					<td><input id="foregroundOverlayColorInput" type="color" value="#5555FF" /></td>
+				</tr>
+				<tr>
+					<th><label for="backgroundColorInput">Background color:</label></th>
+					<td><input id="backgroundColorInput" type="color" value="#00FF00" /></td>
+				</tr>
+				<tr>
+					<th><label for="backgroundImageInput">Background image:</label></th>
+					<td><input accept="image/*" id="backgroundImageInput" type="file" /></td>
+				</tr>
+				<tr>
+					<th><label>Execution context:</label></th>
+					<td>
+						<label for="useMainExecutionContextInput">
+							<input id="useMainExecutionContextInput" name="ExecutionContextInputGroup" type="radio" />
+							Main
+						</label>
+						<label for="useWorkerExecutionContextInput">
+							<input checked="checked" id="useWorkerExecutionContextInput" name="ExecutionContextInputGroup" type="radio" />
+							Worker
+						</label>
+					</td>
+				</tr>
+				<tr>
+					<th><label for="createFakeMaskForTestingInput">Create a fake mask for testing:</label></th>
+					<td><input id="createFakeMaskForTestingInput" type="checkbox" /></td>
+				</tr>
+				<tr>
+					<th></th>
+					<td>
+						<button id="getUserMediaButton" type="button">Start</button>
+						<button disabled="disabled" id="stopVideoTrackButton" type="button">Stop video track</button>
+					</td>
+				</tr>
+			<tbody>
+			</tbody>
+				<tr>
+					<th><label for="deliveredFrameCountDeltaOutput">Delivered frames:</label></th>
+					<td><output id="deliveredFrameCountDeltaOutput">N/A</output>&nbsp;/&nbsp;s</td>
+				</tr>
+				<tr>
+					<th><label for="discardedFrameCountOutput">Discarded frames:</label></th>
+					<td>
+						<output id="discardedFrameCountOutput">N/A</output>
+						(<output id="discardedFrameRateOutput">N/A</output>&nbsp;%)
+					</td>
+				</tr>
+			<tbody>
+			</tbody>
+				<tr>
+					<th rowspan="11">Show:</th>
+					<td><label for="generateMixedVideoInput">
+						<input id="generateMixedVideoInput" type="checkbox" />
+						Mixed frames
+					</label></td>
+				</tr>
+				<tr>
+					<td><label for="generateMaskVideoInput">
+						<input checked="checked" id="generateMaskVideoInput" type="checkbox" />
+						Mask frames
+					</label></td>
+				</tr>
+				<tr>
+					<td><label for="generateNormalVideoInput">
+						<input checked="checked" id="generateNormalVideoInput" type="checkbox" />
+						Normal frames
+					</label></td>
+				</tr>
+				<tr>
+					<td><label for="generateForegroundVideoInput">
+						<input id="generateForegroundVideoInput" type="checkbox" />
+						Foreground frames
+					</label></td>
+				</tr>
+				<tr>
+					<td><label for="generateBackgroundVideoInput">
+						<input id="generateBackgroundVideoInput" type="checkbox" />
+						Background frames
+					</label></td>
+				</tr>
+				<tr>
+					<td><label for="generateBackgroundColorVideoInput">
+						<input id="generateBackgroundColorVideoInput" type="checkbox" />
+						Background color frames
+					</label></td>
+				</tr>
+				<tr>
+					<td><label for="generateForegroundWithBackgroundColorVideoInput">
+						<input id="generateForegroundWithBackgroundColorVideoInput" type="checkbox" />
+						Foreground with background color frames
+					</label></td>
+				</tr>
+				<tr>
+					<td><label for="generateBackgroundImageVideoInput">
+						<input id="generateBackgroundImageVideoInput" type="checkbox" />
+						Background image frames
+					</label></td>
+				</tr>
+				<tr>
+					<td><label for="generateForegroundWithBackgroundImageVideoInput">
+						<input id="generateForegroundWithBackgroundImageVideoInput" type="checkbox" />
+						Foreground with background image frames
+					</label></td>
+				</tr>
+				<tr>
+					<td><label for="generateForegroundOverlayColorVideoInput">
+						<input id="generateForegroundOverlayColorVideoInput" type="checkbox" />
+						Foreground overlay color frames
+					</label></td>
+				</tr>
+				<tr>
+					<td><label for="generateBackgroundWithForegroundOverlayColorVideoInput">
+						<input id="generateBackgroundWithForegroundOverlayColorVideoInput" type="checkbox" />
+						Background with foreground overlay color frames
+					</label></td>
+				</tr>
+			</tbody>
+		</table>
+		<p>
+			<video id="mixedVideo"></video>
+			<video id="maskVideo"></video>
+			<video id="normalVideo"></video>
+			<video id="foregroundVideo"></video>
+			<video id="backgroundVideo"></video>
+			<video id="backgroundColorVideo"></video>
+			<video id="foregroundWithBackgroundColorVideo"></video>
+			<video id="backgroundImageVideo"></video>
+			<video id="foregroundWithBackgroundImageVideo"></video>
+			<video id="foregroundOverlayColorVideo"></video>
+			<video id="backgroundWithForegroundOverlayColorVideo"></video>
+		</p>
+		<script src="process-video-frames.js" type="text/javascript"></script>
+		<script src="main.js" type="text/javascript"></script>
+	</body>
+</html>
