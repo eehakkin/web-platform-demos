@@ -172,9 +172,9 @@
 				new MediaStreamTrackGenerator({kind: 'video'});
 			const backgroundVideoGenerator =
 				new MediaStreamTrackGenerator({kind: 'video'});
-			const backgroundWithForegroundOverlayColorVideoGenerator =
+			const backgroundWithForegroundOverlayColorMaskVideoGenerator =
 				new MediaStreamTrackGenerator({kind: 'video'});
-			const foregroundOverlayColorVideoGenerator =
+			const backgroundWithForegroundOverlayColorVideoGenerator =
 				new MediaStreamTrackGenerator({kind: 'video'});
 			const foregroundVideoGenerator =
 				new MediaStreamTrackGenerator({kind: 'video'});
@@ -195,10 +195,10 @@
 			backgroundImageVideo.srcObject =
 				new MediaStream([backgroundImageVideoGenerator]);
 			backgroundVideo.srcObject = new MediaStream([backgroundVideoGenerator]);
+			backgroundWithForegroundOverlayColorMaskVideo.srcObject =
+				new MediaStream([backgroundWithForegroundOverlayColorMaskVideoGenerator]);
 			backgroundWithForegroundOverlayColorVideo.srcObject =
 				new MediaStream([backgroundWithForegroundOverlayColorVideoGenerator]);
-			foregroundOverlayColorVideo.srcObject =
-				new MediaStream([foregroundOverlayColorVideoGenerator]);
 			foregroundVideo.srcObject = new MediaStream([foregroundVideoGenerator]);
 			foregroundWithBackgroundColorVideo.srcObject =
 				new MediaStream([foregroundWithBackgroundColorVideoGenerator]);
@@ -216,10 +216,10 @@
 				backgroundImageVideoGenerator.writable;
 			const backgroundVideoGeneratorWritable =
 				backgroundVideoGenerator.writable;
+			const backgroundWithForegroundOverlayColorMaskVideoGeneratorWritable =
+				backgroundWithForegroundOverlayColorMaskVideoGenerator.writable;
 			const backgroundWithForegroundOverlayColorVideoGeneratorWritable =
 				backgroundWithForegroundOverlayColorVideoGenerator.writable;
-			const foregroundOverlayColorVideoGeneratorWritable =
-				foregroundOverlayColorVideoGenerator.writable;
 			const foregroundVideoGeneratorWritable =
 				foregroundVideoGenerator.writable;
 			const foregroundWithBackgroundColorVideoGeneratorWritable =
@@ -235,8 +235,8 @@
 				backgroundColorVideoGeneratorWritable,
 				backgroundImageVideoGeneratorWritable,
 				backgroundVideoGeneratorWritable,
+				backgroundWithForegroundOverlayColorMaskVideoGeneratorWritable,
 				backgroundWithForegroundOverlayColorVideoGeneratorWritable,
-				foregroundOverlayColorVideoGeneratorWritable,
 				foregroundVideoGeneratorWritable,
 				foregroundWithBackgroundColorVideoGeneratorWritable,
 				foregroundWithBackgroundImageVideoGeneratorWritable,
