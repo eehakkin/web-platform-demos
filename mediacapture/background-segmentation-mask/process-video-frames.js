@@ -30,8 +30,8 @@ async function processVideoFrames({
 	backgroundColorVideoGeneratorWritable,
 	backgroundImageVideoGeneratorWritable,
 	backgroundVideoGeneratorWritable,
+	backgroundWithForegroundOverlayColorMaskVideoGeneratorWritable,
 	backgroundWithForegroundOverlayColorVideoGeneratorWritable,
-	foregroundOverlayColorVideoGeneratorWritable,
 	foregroundVideoGeneratorWritable,
 	foregroundWithBackgroundColorVideoGeneratorWritable,
 	foregroundWithBackgroundImageVideoGeneratorWritable,
@@ -62,10 +62,10 @@ async function processVideoFrames({
 		backgroundImageVideoGeneratorWritable.getWriter();
 	const backgroundVideoGeneratorWriter =
 		backgroundVideoGeneratorWritable.getWriter();
+	const backgroundWithForegroundOverlayColorMaskVideoGeneratorWriter =
+		backgroundWithForegroundOverlayColorMaskVideoGeneratorWritable.getWriter();
 	const backgroundWithForegroundOverlayColorVideoGeneratorWriter =
 		backgroundWithForegroundOverlayColorVideoGeneratorWritable.getWriter();
-	const foregroundOverlayColorVideoGeneratorWriter =
-		foregroundOverlayColorVideoGeneratorWritable.getWriter();
 	const foregroundVideoGeneratorWriter =
 		foregroundVideoGeneratorWritable.getWriter();
 	const foregroundWithBackgroundColorVideoGeneratorWriter =
@@ -112,13 +112,9 @@ async function processVideoFrames({
 			// Draw a foreground.
 			// This is used as a source
 			// for a foreground video frame,
-			// for a foreground overlay color video frame,
-			// for a background with a foreground overlay color video frame,
 			// for a foreground with a background color video frame and
 			// for a foreground with a background image video frame.
-			if (inputStates.generateBackgroundWithForegroundOverlayColorVideoInput.checked ||
-			    inputStates.generateForegroundOverlayColorVideoInput.checked ||
-			    inputStates.generateForegroundVideoInput.checked ||
+			if (inputStates.generateForegroundVideoInput.checked ||
 			    inputStates.generateForegroundWithBackgroundColorVideoInput.checked ||
 			    inputStates.generateForegroundWithBackgroundImageVideoInput.checked) {
 				const context = foregroundCanvas.getContext('2d');
@@ -138,10 +134,8 @@ async function processVideoFrames({
 
 			// Draw a background.
 			// This is used as a source
-			// for a background video frame and
-			// for a background with a foreground overlay color video frame.
-			if (inputStates.generateBackgroundVideoInput.checked ||
-			    inputStates.generateBackgroundWithForegroundOverlayColorVideoInput.checked) {
+			// for a background video frame.
+			if (inputStates.generateBackgroundVideoInput.checked) {
 				const context = backgroundCanvas.getContext('2d');
 				// Invert and draw the mask video frame.
 				context.globalCompositeOperation = 'copy';
@@ -235,38 +229,35 @@ async function processVideoFrames({
 				}
 			}
 
-			if (inputStates.generateBackgroundWithForegroundOverlayColorVideoInput.checked ||
-			    inputStates.generateForegroundOverlayColorVideoInput.checked) {
-				// Reuse the foreground canvas
-				// which already contains the foreground on black.
-				const backgroundWithForegroundOverlayColorCanvas =
-					foregroundCanvas;
-				const context = backgroundWithForegroundOverlayColorCanvas.getContext('2d');
-				if (context.canvas !== foregroundCanvas) {
-					// Draw the mask video frame.
-					context.globalCompositeOperation = 'copy';
-					context.drawImage(maskVideoFrame, 0, 0);
-					// Draw the normal video frame.
-					context.globalCompositeOperation = 'multiply';
-					context.drawImage(videoFrame, 0, 0);
-				}
-				// Draw the foreground overlay color.
+			if (inputStates.generateBackgroundWithForegroundOverlayColorMaskVideoInput.checked ||
+			    inputStates.generateBackgroundWithForegroundOverlayColorVideoInput.checked) {
+				const backgroundContext = backgroundCanvas.getContext('2d');
+				backgroundContext.globalCompositeOperation = 'copy';
+				backgroundContext.fillStyle = 'white';
+				backgroundContext.fillRect(0, 0, backgroundContext.canvas.width, backgroundContext.canvas.height);
+				backgroundContext.globalCompositeOperation = 'difference';
+				backgroundContext.drawImage(maskVideoFrame, 0, 0);
+				const context = foregroundCanvas.getContext('2d');
+				context.globalCompositeOperation = 'copy';
+				context.drawImage(maskVideoFrame, 0, 0);
 				context.globalCompositeOperation = 'multiply';
 				context.fillStyle = inputStates.foregroundOverlayColorInput.value;
 				context.fillRect(0, 0, context.canvas.width, context.canvas.height);
-				if (inputStates.generateForegroundOverlayColorVideoInput.checked) {
-					// Create and write a foreground
-					// overlay color video frame.
-					foregroundOverlayColorVideoGeneratorWriter.write(
+				context.globalCompositeOperation = 'lighter';
+				context.drawImage(backgroundCanvas, 0, 0);
+				if (inputStates.generateBackgroundWithForegroundOverlayColorMaskVideoInput.checked) {
+					// Create and write a background with
+					// foreground overlay color mask
+					// video frame.
+					backgroundWithForegroundOverlayColorMaskVideoGeneratorWriter.write(
 						new VideoFrame(context.canvas, {timestamp})
 						);
 				}
 				if (inputStates.generateBackgroundWithForegroundOverlayColorVideoInput.checked) {
-					// Draw the background.
-					context.globalCompositeOperation = 'lighter';
-					context.drawImage(backgroundCanvas, 0, 0);
+					context.globalCompositeOperation = 'multiply';
+					context.drawImage(videoFrame, 0, 0);
 					// Create and write a background with
-					// a foreground overlay color video
+					// foreground overlay color video
 					// frame.
 					backgroundWithForegroundOverlayColorVideoGeneratorWriter.write(
 						new VideoFrame(context.canvas, {timestamp})
